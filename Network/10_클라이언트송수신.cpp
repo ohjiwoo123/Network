@@ -37,6 +37,9 @@ int main()
 		return -1;
 	}
 	printf("접속성공\n");
+
+
+
 	while (1)
 	{
 		char buf[100];

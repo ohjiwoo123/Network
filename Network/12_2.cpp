@@ -3,6 +3,61 @@
 #include <WinSock2.h>
 #pragma comment(lib,"ws2_32.lib")
 
+//SOCKET g_sockList[10];
+//int g_nCount = 0;
+
+#include <vector>	// 모형자 (템플릿)
+//using namespace std;
+std::vector<SOCKET> g_sockList;	// 소켓의 배열 <SOCKET> ,int, HUMAN 구조체 등등 사용가능
+
+DWORD WINAPI WorkThread(LPVOID p)
+{
+	SOCKET ClientSocket = (SOCKET)p;
+	char buf[100];
+	while (1) // 한 고객을 무한히 서비스하기 위한 무한 루프
+	{
+		// 5. send()/receive()
+		int rev;
+		rev = recv(ClientSocket, buf, sizeof(buf), 0);
+		if (rev == SOCKET_ERROR)
+		{
+			printf("소켓에 오류 발생\n");
+			break;
+		}
+		else if (rev == 0)
+		{
+			printf("상대방이 closesocket() 호출\n");
+			break;
+		}
+		else
+		{
+
+			// for (int i = 0; i < g_nCount; i++)
+			for (int i = 0; i < g_sockList.size(); i++)
+			{
+				if (g_sockList[i] == ClientSocket)
+				{
+					continue;
+				}
+				rev = send(g_sockList[i], buf, strlen(buf) + 1, 0);
+				printf("%d 송신정보 : %dbyte, %s\n", g_sockList[i], rev, buf);
+			}
+		}
+	}
+	// 6. closesocket()
+	for (int i = 0; i < g_sockList.size(); i++)
+	{
+		if (g_sockList[i] == ClientSocket)
+		{
+			//제거
+			g_sockList.erase(g_sockList.begin() + i);
+			break;
+		}
+	}
+	closesocket(ClientSocket);
+	return 0;
+}
+
 int main()
 {
 	WSADATA wsa;
@@ -46,31 +101,34 @@ int main()
 	printf("대기 소켓의 초기화 과정 완료\n");
 
 	//--- 클라이언트 접속대기 (통신 소켓 생성)
-	char buf[100];
+
 	while (1)	// 다수의 고객을 위한 무한루프 
 	{
+		SOCKET ClientSocket;
 		// 4. accept()
 		SOCKADDR_IN ClientAddr = { 0 };
 		int ClientAddrSize = sizeof(ClientAddr);
-		SOCKET ClientSocket = accept(ListenSocket, (SOCKADDR*)&ClientAddr, &ClientAddrSize);
 
+		ClientSocket = accept(ListenSocket, (SOCKADDR*)&ClientAddr, &ClientAddrSize);
 		if (ClientSocket == INVALID_SOCKET)
 		{
 			return -1;
 		}
+
+		// 소켓 리스트 저장 
+		// .. 맥스체크를 하지 않았음 
+		//g_sockList[g_nCount] = ClientSocket;
+		//g_nCount++;
+		g_sockList.push_back(ClientSocket);
+
+
 		printf("클라이언트 접속 성공\n");
 		// 클라이언트 정보 출력
 		printf("클라이언트 정보 : %s:%d\n", inet_ntoa(ClientAddr.sin_addr), ntohs(ClientAddr.sin_port));
 
-		// 5. send()/receive()
-		int rev;
-		rev = recv(ClientSocket, buf, sizeof(buf), 0);
-		printf("수신정보 : %dbyte, %s\n", rev, buf);
-		rev = send(ClientSocket, buf, strlen(buf) + 1, 0);
-		printf("송신정보 : %dbyte, %s\n", rev, buf);
-		
-		// 6. closesocket()
-		closesocket(ClientSocket);
+		// 하나의 클라이언트를 위한 서비스 스레드 생성 
+		CloseHandle(CreateThread(NULL, 0, WorkThread, (LPVOID)ClientSocket, NULL, NULL));
+
 	}
 	//------------------------------------------
 	// 종료

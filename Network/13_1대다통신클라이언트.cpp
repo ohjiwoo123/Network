@@ -22,6 +22,7 @@ DWORD WINAPI recvThread(LPVOID p)
 	closesocket(Socket);
 	return 0;
 }
+
 int main()
 {
 	WSADATA wsa;
